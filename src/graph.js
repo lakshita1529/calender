@@ -3,8 +3,9 @@ import mondaySdk from 'monday-sdk-js';
 import moment from 'moment';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { Modal, Button, Form, Dropdown } from 'react-bootstrap';
+import { Modal, Button, Form } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import TaskDetails from './Taskdetails'; 
 
 const monday = mondaySdk();
 const localizer = momentLocalizer(moment);
@@ -14,21 +15,21 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
-  const [isNew, setIsNew] = useState(false);
-  const [filterOption, setFilterOption] = useState('name'); // Default filter to 'name'
-  const [columns, setColumns] = useState([]); // To store columns of the board
-
+  const [columns, setColumns] = useState([]);
+  const [selectedColumns, setSelectedColumns] = useState([]); 
+  const [dateField, setDateField] = useState('start'); 
+  const [showSettings, setShowSettings] = useState(false); 
   useEffect(() => {
     monday.listen("context", (res) => {
       setContext(res.data);
       if (res.data.boardIds && res.data.boardIds.length > 0) {
         fetchBoardData(res.data.boardIds[0]);
-        fetchBoardColumns(res.data.boardIds[0]); // Fetch columns
+        fetchBoardColumns(res.data.boardIds[0]); 
       }
     });
-  }, []);
+  }, [selectedColumns, dateField]);
 
-  // Fetch the board data
+ 
   const fetchBoardData = async (boardId) => {
     setLoading(true);
 
@@ -58,23 +59,48 @@ const App = () => {
       const newItems = response.data.boards[0].items_page.items;
 
       const transformedEvents = newItems.map(item => {
-        const dateColumn = item.column_values.find(col => col.column.title === 'Tenure End Period');
+        const startDateColumn = item.column_values.find(col => col.column.title === 'Start Date');
+        const endDateColumn = item.column_values.find(col => col.column.title === 'End Date');
         const locationColumn = item.column_values.find(col => col.column.title === 'Location');
+        const phoneColumn = item.column_values.find(col => col.column.title === 'Phone Number');
+        const investmentCostColumn = item.column_values.find(col => col.column.title === 'Investment Cost');
+        const statusColumn = item.column_values.find(col => col.column.title === 'Status');
 
-        if (dateColumn && dateColumn.text) {
+        const eventStartDate = startDateColumn && startDateColumn.text ? new Date(startDateColumn.text) : null;
+        const eventEndDate = endDateColumn && endDateColumn.text ? new Date(endDateColumn.text) : null;
+
+        
+        let eventTitle = item.name;
+
+        
+        if (selectedColumns.length > 0) {
+          const selectedDetails = selectedColumns.map(colId => {
+            const columnValue = item.column_values.find(col => col.id === colId)?.text;
+            return columnValue || ''; 
+          }).filter(Boolean).join(', ');
+
+          if (selectedDetails) {
+            eventTitle = `${item.name} - ${selectedDetails}`; 
+          }
+        }
+
+       
+        const eventDate = dateField === 'start' ? eventStartDate : eventEndDate;
+
+        if (eventDate) {
           return {
             id: item.id,
-            title: item.name, // Show name initially
-            location: locationColumn ? locationColumn.text : "No Location",
-            start: new Date(dateColumn.text),
-            end: new Date(dateColumn.text),
+            title: eventTitle, 
+            originalTitle: item.name, 
+            start: eventDate,
+            end: eventDate,
             allDay: false,
-            column_values: item.column_values, // Store all column values here for filtering
+            column_values: item.column_values, 
             additionalData: {
-              phoneNumber: item.column_values.find(col => col.column.title === 'Phone Number')?.text,
-              investmentCost: item.column_values.find(col => col.column.title === 'Investment Cost')?.text,
-              joinedDate: item.column_values.find(col => col.column.title === 'Joined Date')?.text,
-              tenureEndDate: dateColumn.text
+              phoneNumber: phoneColumn?.text,
+              investmentCost: investmentCostColumn?.text,
+              location: locationColumn?.text,  
+              status: statusColumn?.text,   
             }
           };
         }
@@ -89,7 +115,7 @@ const App = () => {
     }
   };
 
-  // Fetch the board columns dynamically
+
   const fetchBoardColumns = async (boardId) => {
     const query = `query {
       boards(ids: 7557291696) {
@@ -104,99 +130,52 @@ const App = () => {
       const response = await monday.api(query);
       const boardColumns = response.data.boards[0].columns;
 
-      setColumns(boardColumns); // Set columns in state
+      setColumns(boardColumns); 
     } catch (error) {
       console.error("Error fetching board columns:", error);
     }
   };
 
   const handleEventClick = (event) => {
-    setSelectedTask(event);
-    setIsNew(false);
-  };
-
-  const handleSlotSelect = (slotInfo) => {
-    setSelectedTask({
-      title: '',
-      location: '',
-      start: slotInfo.start,
-      end: slotInfo.end,
-      additionalData: {
-        phoneNumber: '',
-        investmentCost: '',
-        joinedDate: '',
-        tenureEndDate: slotInfo.start.toISOString()
-      }
-    });
-    setIsNew(true);
+   
+    setSelectedTask({ ...event, title: event.originalTitle });
   };
 
   const handleModalClose = () => {
     setSelectedTask(null);
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setSelectedTask({
-      ...selectedTask,
-      [name]: value
-    });
+
+  const handleColumnSelect = (column) => {
+    if (selectedColumns.includes(column)) {
+      setSelectedColumns(selectedColumns.filter(col => col !== column));
+    } else if (selectedColumns.length < 2) {
+      setSelectedColumns([...selectedColumns, column]);
+    }
   };
 
-  const handleAdditionalDataChange = (e) => {
-    const { name, value } = e.target;
-    setSelectedTask({
-      ...selectedTask,
-      additionalData: {
-        ...selectedTask.additionalData,
-        [name]: value
-      }
-    });
-  };
-
-  // Function to handle filtering
-  const handleFilterChange = (option) => {
-    setFilterOption(option);
-  };
-
-  // Function to render titles based on the filter option
-  const getFilteredTitle = (event) => {
-    if (!event || !event.column_values) return event.title; // Fallback to the title if there's no column_values
-
-    const columnValue = event.column_values.find(col => col.id === filterOption)?.text;
-    return columnValue || event.title; // Default to name if no specific column is found
+  const handleDateFieldChange = (e) => {
+    setDateField(e.target.value);
   };
 
   return (
     <div>
       <h1>Calendar</h1>
 
-      {/* Dropdown Filter */}
-      <Dropdown>
-        <Dropdown.Toggle variant="primary" id="dropdown-basic">
-          Filter: {filterOption}
-        </Dropdown.Toggle>
-
-        <Dropdown.Menu>
-          {columns.map(col => (
-            <Dropdown.Item key={col.id} onClick={() => handleFilterChange(col.id)}>
-              {col.title}
-            </Dropdown.Item>
-          ))}
-        </Dropdown.Menu>
-      </Dropdown>
+    
+      <Button variant="secondary" onClick={() => setShowSettings(true)} style={{ marginTop: '20px' }}>
+        Settings
+      </Button>
 
       <div style={{ height: '500px', marginTop: '20px' }}>
         <Calendar
           localizer={localizer}
           events={events.map(event => ({
             ...event,
-            title: getFilteredTitle(event) // Dynamically show filtered value
+            title: event.title
           }))}
           startAccessor="start"
           endAccessor="end"
-          selectable
-          onSelectSlot={handleSlotSelect}
           onSelectEvent={handleEventClick}
           style={{ height: 500 }}
         />
@@ -204,77 +183,64 @@ const App = () => {
 
       {loading && <p>Loading board data...</p>}
 
-      {selectedTask && (
-        <Modal show={true} onHide={handleModalClose}>
+    
+      {showSettings && (
+        <Modal show={true} onHide={() => setShowSettings(false)}>
           <Modal.Header closeButton>
-            <Modal.Title>{isNew ? "Add New Task" : `Edit Task: ${selectedTask.title}`}</Modal.Title>
+            <Modal.Title>Settings</Modal.Title>
           </Modal.Header>
           <Modal.Body>
             <Form>
-              <Form.Group>
-                <Form.Label>Task Name</Form.Label>
-                <Form.Control
-                  type="text"
-                  name="title"
-                  value={selectedTask.title}
-                  onChange={handleInputChange}
-                />
-              </Form.Group>
-              <Form.Group>
-                <Form.Label>Phone Number</Form.Label>
-                <Form.Control
-                  type="text"
-                  name="phoneNumber"
-                  value={selectedTask.additionalData.phoneNumber}
-                  onChange={handleAdditionalDataChange}
-                />
-              </Form.Group>
-              <Form.Group>
-                <Form.Label>Investment Cost</Form.Label>
-                <Form.Control
-                  type="text"
-                  name="investmentCost"
-                  value={selectedTask.additionalData.investmentCost}
-                  onChange={handleAdditionalDataChange}
-                />
-              </Form.Group>
-              <Form.Group>
-                <Form.Label>Joined Date</Form.Label>
-                <Form.Control
-                  type="date"
-                  name="joinedDate"
-                  value={moment(selectedTask.additionalData.joinedDate).format('YYYY-MM-DD')}
-                  onChange={handleAdditionalDataChange}
-                />
-              </Form.Group>
-              <Form.Group>
-                <Form.Label>Location</Form.Label>
-                <Form.Control
-                  type="text"
-                  name="location"
-                  value={selectedTask.location}
-                  onChange={handleInputChange}
-                />
-              </Form.Group>
-              <Form.Group>
-                <Form.Label>Tenure End Period</Form.Label>
-                <Form.Control
-                  type="datetime-local"
-                  name="tenureEndDate"
-                  value={moment(selectedTask.additionalData.tenureEndDate).format('YYYY-MM-DDTHH:mm')}
-                  onChange={handleAdditionalDataChange}
-                />
-              </Form.Group>
+              <Form.Label>Select up to 2 columns to display</Form.Label>
+              {columns
+                .filter(col => col.title !== 'Name') 
+                .map(col => (
+                  <Form.Check
+                    key={col.id}
+                    type="checkbox"
+                    label={col.title}
+                    checked={selectedColumns.includes(col.id)}
+                    onChange={() => handleColumnSelect(col.id)}
+                    disabled={selectedColumns.length >= 2 && !selectedColumns.includes(col.id)}
+                  />
+                ))}
+
+              <hr />
+
+              <Form.Label>Select Date Field for Event Placement</Form.Label>
+              <Form.Check
+                type="radio"
+                label="Start Date"
+                value="start"
+                checked={dateField === 'start'}
+                onChange={handleDateFieldChange}
+              />
+              <Form.Check
+                type="radio"
+                label="End Date"
+                value="end"
+                checked={dateField === 'end'}
+                onChange={handleDateFieldChange}
+              />
             </Form>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="secondary" onClick={handleModalClose}>
+            <Button variant="secondary" onClick={() => setShowSettings(false)}>
               Close
             </Button>
-            <Button variant="primary">
-              Save Changes
-            </Button>
           </Modal.Footer>
+        </Modal>
+      )}
+
+      {/* TaskList (Read-Only) */}
+      {selectedTask && (
+        <Modal show={true} onHide={handleModalClose}>
+          <Modal.Header closeButton>
+            <Modal.Title>Task Details</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <TaskDetails selectedTask={selectedTask} />
+          </Modal.Body>
         </Modal>
       )}
     </div>
