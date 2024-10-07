@@ -1,28 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import mondaySdk from 'monday-sdk-js';
-import moment from 'moment'; 
+import moment from 'moment';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
-import 'react-big-calendar/lib/css/react-big-calendar.css'; 
+import 'react-big-calendar/lib/css/react-big-calendar.css';
+import { Modal, Button, Form, Dropdown } from 'react-bootstrap';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
-const monday = mondaySdk(); 
-const localizer = momentLocalizer(moment); 
+const monday = mondaySdk();
+const localizer = momentLocalizer(moment);
 
 const App = () => {
   const [context, setContext] = useState(null);
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState([]);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [isNew, setIsNew] = useState(false);
+  const [filterOption, setFilterOption] = useState('name'); // Default filter to 'name'
+  const [columns, setColumns] = useState([]); // To store columns of the board
 
   useEffect(() => {
     monday.listen("context", (res) => {
-      console.log("Context received from Monday.com:", res);
       setContext(res.data);
       if (res.data.boardIds && res.data.boardIds.length > 0) {
-        fetchBoardData(res.data.boardIds[0]); 
+        fetchBoardData(res.data.boardIds[0]);
+        fetchBoardColumns(res.data.boardIds[0]); // Fetch columns
       }
     });
   }, []);
 
-  const fetchBoardData = async () => {
+  // Fetch the board data
+  const fetchBoardData = async (boardId) => {
     setLoading(true);
 
     const query = `query {
@@ -49,33 +56,30 @@ const App = () => {
     try {
       const response = await monday.api(query);
       const newItems = response.data.boards[0].items_page.items;
-      console.log("Fetched items:", newItems);
 
-      // Convert items to calendar events
       const transformedEvents = newItems.map(item => {
         const dateColumn = item.column_values.find(col => col.column.title === 'Tenure End Period');
-        const locationColumn = item.column_values.find(col => col.column.title === 'Location'); 
+        const locationColumn = item.column_values.find(col => col.column.title === 'Location');
 
-        if (dateColumn && dateColumn.value) {
-          const parsedValue = JSON.parse(dateColumn.value); // Assuming the time and date are stored as JSON
-          const eventStartTime = `${parsedValue.date}T${parsedValue.time}`;
-          const startTime = new Date(eventStartTime);
-
+        if (dateColumn && dateColumn.text) {
           return {
             id: item.id,
-            title: item.name,
-            location: locationColumn ? locationColumn.text : "No Location", 
-            start: startTime,  // Event start time
-            end: startTime,    // Single point event, end same as start
-            allDay: false      // Specific times, so not an all-day event
+            title: item.name, // Show name initially
+            location: locationColumn ? locationColumn.text : "No Location",
+            start: new Date(dateColumn.text),
+            end: new Date(dateColumn.text),
+            allDay: false,
+            column_values: item.column_values, // Store all column values here for filtering
+            additionalData: {
+              phoneNumber: item.column_values.find(col => col.column.title === 'Phone Number')?.text,
+              investmentCost: item.column_values.find(col => col.column.title === 'Investment Cost')?.text,
+              joinedDate: item.column_values.find(col => col.column.title === 'Joined Date')?.text,
+              tenureEndDate: dateColumn.text
+            }
           };
-        } else {
-          console.log(`Invalid or missing date for item ${item.name}: `, dateColumn);
         }
         return null;
       }).filter(event => event !== null);
-
-      console.log("Transformed events:", transformedEvents);
 
       setEvents(transformedEvents);
       setLoading(false);
@@ -85,36 +89,194 @@ const App = () => {
     }
   };
 
-  // Custom event rendering to display the event title and location
-  const EventComponent = ({ event }) => (
-    <div>
-      <span style={{ color: 'white', fontWeight: 'bold', display: 'block' }}>
-        {event.title}
-      </span>
-      <span style={{ color: 'white', display: 'block'}}>
-        {event.location}
-      </span>
-    </div>
-  );
+  // Fetch the board columns dynamically
+  const fetchBoardColumns = async (boardId) => {
+    const query = `query {
+      boards(ids: 7557291696) {
+        columns {
+          id
+          title
+        }
+      }
+    }`;
+
+    try {
+      const response = await monday.api(query);
+      const boardColumns = response.data.boards[0].columns;
+
+      setColumns(boardColumns); // Set columns in state
+    } catch (error) {
+      console.error("Error fetching board columns:", error);
+    }
+  };
+
+  const handleEventClick = (event) => {
+    setSelectedTask(event);
+    setIsNew(false);
+  };
+
+  const handleSlotSelect = (slotInfo) => {
+    setSelectedTask({
+      title: '',
+      location: '',
+      start: slotInfo.start,
+      end: slotInfo.end,
+      additionalData: {
+        phoneNumber: '',
+        investmentCost: '',
+        joinedDate: '',
+        tenureEndDate: slotInfo.start.toISOString()
+      }
+    });
+    setIsNew(true);
+  };
+
+  const handleModalClose = () => {
+    setSelectedTask(null);
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setSelectedTask({
+      ...selectedTask,
+      [name]: value
+    });
+  };
+
+  const handleAdditionalDataChange = (e) => {
+    const { name, value } = e.target;
+    setSelectedTask({
+      ...selectedTask,
+      additionalData: {
+        ...selectedTask.additionalData,
+        [name]: value
+      }
+    });
+  };
+
+  // Function to handle filtering
+  const handleFilterChange = (option) => {
+    setFilterOption(option);
+  };
+
+  // Function to render titles based on the filter option
+  const getFilteredTitle = (event) => {
+    if (!event || !event.column_values) return event.title; // Fallback to the title if there's no column_values
+
+    const columnValue = event.column_values.find(col => col.id === filterOption)?.text;
+    return columnValue || event.title; // Default to name if no specific column is found
+  };
 
   return (
     <div>
-      <h1>Board View with Calendar</h1>
-      <div style={{ height: '500px' }}>
+      <h1>Calendar</h1>
+
+      {/* Dropdown Filter */}
+      <Dropdown>
+        <Dropdown.Toggle variant="primary" id="dropdown-basic">
+          Filter: {filterOption}
+        </Dropdown.Toggle>
+
+        <Dropdown.Menu>
+          {columns.map(col => (
+            <Dropdown.Item key={col.id} onClick={() => handleFilterChange(col.id)}>
+              {col.title}
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      </Dropdown>
+
+      <div style={{ height: '500px', marginTop: '20px' }}>
         <Calendar
           localizer={localizer}
-          events={events}
+          events={events.map(event => ({
+            ...event,
+            title: getFilteredTitle(event) // Dynamically show filtered value
+          }))}
           startAccessor="start"
           endAccessor="end"
+          selectable
+          onSelectSlot={handleSlotSelect}
+          onSelectEvent={handleEventClick}
           style={{ height: 500 }}
-          min={new Date(2024, 9, 2, 0, 0)} // Start calendar day at 12:00 AM
-          max={new Date(2024, 9, 2, 23, 59)} // End calendar day at 11:59 PM
-          components={{
-            event: EventComponent 
-          }}
         />
       </div>
+
       {loading && <p>Loading board data...</p>}
+
+      {selectedTask && (
+        <Modal show={true} onHide={handleModalClose}>
+          <Modal.Header closeButton>
+            <Modal.Title>{isNew ? "Add New Task" : `Edit Task: ${selectedTask.title}`}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form>
+              <Form.Group>
+                <Form.Label>Task Name</Form.Label>
+                <Form.Control
+                  type="text"
+                  name="title"
+                  value={selectedTask.title}
+                  onChange={handleInputChange}
+                />
+              </Form.Group>
+              <Form.Group>
+                <Form.Label>Phone Number</Form.Label>
+                <Form.Control
+                  type="text"
+                  name="phoneNumber"
+                  value={selectedTask.additionalData.phoneNumber}
+                  onChange={handleAdditionalDataChange}
+                />
+              </Form.Group>
+              <Form.Group>
+                <Form.Label>Investment Cost</Form.Label>
+                <Form.Control
+                  type="text"
+                  name="investmentCost"
+                  value={selectedTask.additionalData.investmentCost}
+                  onChange={handleAdditionalDataChange}
+                />
+              </Form.Group>
+              <Form.Group>
+                <Form.Label>Joined Date</Form.Label>
+                <Form.Control
+                  type="date"
+                  name="joinedDate"
+                  value={moment(selectedTask.additionalData.joinedDate).format('YYYY-MM-DD')}
+                  onChange={handleAdditionalDataChange}
+                />
+              </Form.Group>
+              <Form.Group>
+                <Form.Label>Location</Form.Label>
+                <Form.Control
+                  type="text"
+                  name="location"
+                  value={selectedTask.location}
+                  onChange={handleInputChange}
+                />
+              </Form.Group>
+              <Form.Group>
+                <Form.Label>Tenure End Period</Form.Label>
+                <Form.Control
+                  type="datetime-local"
+                  name="tenureEndDate"
+                  value={moment(selectedTask.additionalData.tenureEndDate).format('YYYY-MM-DDTHH:mm')}
+                  onChange={handleAdditionalDataChange}
+                />
+              </Form.Group>
+            </Form>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleModalClose}>
+              Close
+            </Button>
+            <Button variant="primary">
+              Save Changes
+            </Button>
+          </Modal.Footer>
+        </Modal>
+      )}
     </div>
   );
 };
