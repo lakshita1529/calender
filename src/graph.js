@@ -3,9 +3,10 @@ import mondaySdk from 'monday-sdk-js';
 import moment from 'moment';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { Modal, Button, Form } from 'react-bootstrap';
+import { Dropdown, Modal, Form, Container, Row, Col } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import TaskDetails from './Taskdetails'; 
+import TaskDetails from './Taskdetails';
+import './App.css'
 
 const monday = mondaySdk();
 const localizer = momentLocalizer(moment);
@@ -18,7 +19,9 @@ const App = () => {
   const [columns, setColumns] = useState([]);
   const [selectedColumns, setSelectedColumns] = useState([]); 
   const [dateField, setDateField] = useState('start'); 
-  const [showSettings, setShowSettings] = useState(false); 
+  const [subItems, setSubItems] = useState({}); 
+  const [selectedSubitem, setSelectedSubitem] = useState(null);
+
   useEffect(() => {
     monday.listen("context", (res) => {
       setContext(res.data);
@@ -29,12 +32,11 @@ const App = () => {
     });
   }, [selectedColumns, dateField]);
 
- 
   const fetchBoardData = async (boardId) => {
     setLoading(true);
 
     const query = `query {
-      boards(ids: 7557291696) {
+      boards(ids: ${boardId}) {
         id
         name
         items_page(limit: 500) {
@@ -59,20 +61,11 @@ const App = () => {
       const newItems = response.data.boards[0].items_page.items;
 
       const transformedEvents = newItems.map(item => {
-        const startDateColumn = item.column_values.find(col => col.column.title === 'Start Date');
-        const endDateColumn = item.column_values.find(col => col.column.title === 'End Date');
-        const locationColumn = item.column_values.find(col => col.column.title === 'Location');
-        const phoneColumn = item.column_values.find(col => col.column.title === 'Phone Number');
-        const investmentCostColumn = item.column_values.find(col => col.column.title === 'Investment Cost');
-        const statusColumn = item.column_values.find(col => col.column.title === 'Status');
+        const dateColumn = item.column_values.find(col => col.column.title === dateField);
+        const eventDate = dateColumn && dateColumn.text ? new Date(dateColumn.text).toISOString() : null;
 
-        const eventStartDate = startDateColumn && startDateColumn.text ? new Date(startDateColumn.text) : null;
-        const eventEndDate = endDateColumn && endDateColumn.text ? new Date(endDateColumn.text) : null;
-
-        
         let eventTitle = item.name;
 
-        
         if (selectedColumns.length > 0) {
           const selectedDetails = selectedColumns.map(colId => {
             const columnValue = item.column_values.find(col => col.id === colId)?.text;
@@ -84,9 +77,6 @@ const App = () => {
           }
         }
 
-       
-        const eventDate = dateField === 'start' ? eventStartDate : eventEndDate;
-
         if (eventDate) {
           return {
             id: item.id,
@@ -96,12 +86,6 @@ const App = () => {
             end: eventDate,
             allDay: false,
             column_values: item.column_values, 
-            additionalData: {
-              phoneNumber: phoneColumn?.text,
-              investmentCost: investmentCostColumn?.text,
-              location: locationColumn?.text,  
-              status: statusColumn?.text,   
-            }
           };
         }
         return null;
@@ -115,10 +99,9 @@ const App = () => {
     }
   };
 
-
   const fetchBoardColumns = async (boardId) => {
     const query = `query {
-      boards(ids: 7557291696) {
+      boards(ids: ${boardId}) {
         columns {
           id
           title
@@ -129,7 +112,6 @@ const App = () => {
     try {
       const response = await monday.api(query);
       const boardColumns = response.data.boards[0].columns;
-
       setColumns(boardColumns); 
     } catch (error) {
       console.error("Error fetching board columns:", error);
@@ -137,14 +119,12 @@ const App = () => {
   };
 
   const handleEventClick = (event) => {
-   
     setSelectedTask({ ...event, title: event.originalTitle });
   };
 
   const handleModalClose = () => {
     setSelectedTask(null);
   };
-
 
   const handleColumnSelect = (column) => {
     if (selectedColumns.includes(column)) {
@@ -159,80 +139,74 @@ const App = () => {
   };
 
   return (
-    <div>
-      <h1>Calendar</h1>
+    <Container fluid>
+      <Row>
+        <Col md={9}>
+          <h1>Calendar</h1>
+          <div style={{ height: '600px', marginTop: '20px' }}>
+            <Calendar
+              localizer={localizer}
+              events={events.map(event => ({
+                ...event,
+                title: event.title,
+                start: moment.utc(event.start).local().toDate(), 
+                end: moment.utc(event.end).local().toDate() 
+              }))}
+              views={['month', 'week', 'day']} // Removed 'agenda' view here
+              startAccessor="start"
+              endAccessor="end"
+              onSelectEvent={handleEventClick}
+              style={{ height: '100%' }}
+            />
+          </div>
+        </Col>
+        <Col md={3}>
+          <Dropdown className="mt-2">
+            <Dropdown.Toggle variant="secondary" id="dropdown-basic">
+              Setting
+            </Dropdown.Toggle>
 
-    
-      <Button variant="secondary" onClick={() => setShowSettings(true)} style={{ marginTop: '20px' }}>
-        Settings
-      </Button>
-
-      <div style={{ height: '500px', marginTop: '20px' }}>
-        <Calendar
-          localizer={localizer}
-          events={events.map(event => ({
-            ...event,
-            title: event.title
-          }))}
-          startAccessor="start"
-          endAccessor="end"
-          onSelectEvent={handleEventClick}
-          style={{ height: 500 }}
-        />
-      </div>
+            <Dropdown.Menu>
+              <Form className="px-3">
+                <Form.Label>Select to display in event details</Form.Label>
+                <div style={{ maxHeight: '150px', overflowY: 'scroll' }}>
+                  {columns
+                    .filter(col => col.title !== 'Name')
+                    .map(col => (
+                      <Form.Check
+                        key={col.id}
+                        type="checkbox"
+                        label={col.title}
+                        checked={selectedColumns.includes(col.id)}
+                        onChange={() => handleColumnSelect(col.id)}
+                        disabled={selectedColumns.length >= 2 && !selectedColumns.includes(col.id)}
+                      />
+                    ))}
+                </div>
+                <hr />
+                <Form.Label>Choose the date to base the event timing on</Form.Label>
+                <div style={{ maxHeight: '150px', overflowY: 'scroll' }}>
+                  {columns
+                    .filter(col => col.title.includes('Date'))
+                    .map(col => (
+                      <Form.Check
+                        key={col.id}
+                        type="radio"
+                        label={col.title}
+                        value={col.title}
+                        checked={dateField === col.title}
+                        onChange={handleDateFieldChange}
+                      />
+                    ))}
+                </div>
+              </Form>
+            </Dropdown.Menu>
+          </Dropdown>
+        </Col>
+      </Row>
 
       {loading && <p>Loading board data...</p>}
 
-    
-      {showSettings && (
-        <Modal show={true} onHide={() => setShowSettings(false)}>
-          <Modal.Header closeButton>
-            <Modal.Title>Settings</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            <Form>
-              <Form.Label>Select up to 2 columns to display</Form.Label>
-              {columns
-                .filter(col => col.title !== 'Name') 
-                .map(col => (
-                  <Form.Check
-                    key={col.id}
-                    type="checkbox"
-                    label={col.title}
-                    checked={selectedColumns.includes(col.id)}
-                    onChange={() => handleColumnSelect(col.id)}
-                    disabled={selectedColumns.length >= 2 && !selectedColumns.includes(col.id)}
-                  />
-                ))}
-
-              <hr />
-
-              <Form.Label>Select Date Field for Event Placement</Form.Label>
-              <Form.Check
-                type="radio"
-                label="Start Date"
-                value="start"
-                checked={dateField === 'start'}
-                onChange={handleDateFieldChange}
-              />
-              <Form.Check
-                type="radio"
-                label="End Date"
-                value="end"
-                checked={dateField === 'end'}
-                onChange={handleDateFieldChange}
-              />
-            </Form>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={() => setShowSettings(false)}>
-              Close
-            </Button>
-          </Modal.Footer>
-        </Modal>
-      )}
-
-      {/* TaskList (Read-Only) */}
       {selectedTask && (
         <Modal show={true} onHide={handleModalClose}>
           <Modal.Header closeButton>
@@ -243,7 +217,7 @@ const App = () => {
           </Modal.Body>
         </Modal>
       )}
-    </div>
+    </Container>
   );
 };
 
