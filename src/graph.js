@@ -6,7 +6,7 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Dropdown, Modal, Form, Container, Row, Col } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import TaskDetails from './Taskdetails';
-import './App.css'
+import './App.css';
 
 const monday = mondaySdk();
 const localizer = momentLocalizer(moment);
@@ -17,10 +17,11 @@ const App = () => {
   const [events, setEvents] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
   const [columns, setColumns] = useState([]);
-  const [selectedColumns, setSelectedColumns] = useState([]); 
-  const [dateField, setDateField] = useState('start'); 
-  const [subItems, setSubItems] = useState({}); 
-  const [selectedSubitem, setSelectedSubitem] = useState(null);
+  const [selectedColumns, setSelectedColumns] = useState(
+    JSON.parse(localStorage.getItem('selectedColumns')) || []
+  );
+  const [dateField, setDateField] = useState(localStorage.getItem('dateField') || 'start');
+  const [highlightedEventId, setHighlightedEventId] = useState(null); // For color change on click
 
   useEffect(() => {
     monday.listen("context", (res) => {
@@ -32,9 +33,9 @@ const App = () => {
     });
   }, [selectedColumns, dateField]);
 
+  // Fetching board data
   const fetchBoardData = async (boardId) => {
     setLoading(true);
-
     const query = `query {
       boards(ids: ${boardId}) {
         id
@@ -65,27 +66,26 @@ const App = () => {
         const eventDate = dateColumn && dateColumn.text ? new Date(dateColumn.text).toISOString() : null;
 
         let eventTitle = item.name;
-
         if (selectedColumns.length > 0) {
           const selectedDetails = selectedColumns.map(colId => {
             const columnValue = item.column_values.find(col => col.id === colId)?.text;
-            return columnValue || ''; 
+            return columnValue || '';
           }).filter(Boolean).join(', ');
 
           if (selectedDetails) {
-            eventTitle = `${item.name} - ${selectedDetails}`; 
+            eventTitle = `${item.name} - ${selectedDetails}`;
           }
         }
 
         if (eventDate) {
           return {
             id: item.id,
-            title: eventTitle, 
-            originalTitle: item.name, 
+            title: eventTitle,
+            originalTitle: item.name,
             start: eventDate,
             end: eventDate,
             allDay: false,
-            column_values: item.column_values, 
+            column_values: item.column_values,
           };
         }
         return null;
@@ -99,6 +99,7 @@ const App = () => {
     }
   };
 
+  // Fetch board columns
   const fetchBoardColumns = async (boardId) => {
     const query = `query {
       boards(ids: ${boardId}) {
@@ -118,24 +119,35 @@ const App = () => {
     }
   };
 
+  // Event click handler
   const handleEventClick = (event) => {
     setSelectedTask({ ...event, title: event.originalTitle });
+    setHighlightedEventId(event.id); // Highlight event on click
   };
 
+  // Close modal and reset color
   const handleModalClose = () => {
     setSelectedTask(null);
+    setHighlightedEventId(null); // Remove event highlight
   };
 
+  // Handle column selection for event display
   const handleColumnSelect = (column) => {
     if (selectedColumns.includes(column)) {
-      setSelectedColumns(selectedColumns.filter(col => col !== column));
+      const updatedColumns = selectedColumns.filter(col => col !== column);
+      setSelectedColumns(updatedColumns);
+      localStorage.setItem('selectedColumns', JSON.stringify(updatedColumns)); // Persist settings
     } else if (selectedColumns.length < 2) {
-      setSelectedColumns([...selectedColumns, column]);
+      const updatedColumns = [...selectedColumns, column];
+      setSelectedColumns(updatedColumns);
+      localStorage.setItem('selectedColumns', JSON.stringify(updatedColumns)); // Persist settings
     }
   };
 
+  // Handle date field selection
   const handleDateFieldChange = (e) => {
     setDateField(e.target.value);
+    localStorage.setItem('dateField', e.target.value); // Persist settings
   };
 
   return (
@@ -149,10 +161,11 @@ const App = () => {
               events={events.map(event => ({
                 ...event,
                 title: event.title,
-                start: moment.utc(event.start).local().toDate(), 
-                end: moment.utc(event.end).local().toDate() 
+                start: moment.utc(event.start).local().toDate(),
+                end: moment.utc(event.end).local().toDate(),
+                style: event.id === highlightedEventId ? { backgroundColor: 'blue' } : {}, // Highlight color
               }))}
-              views={['month', 'week', 'day']} // Removed 'agenda' view here
+              views={['month', 'week', 'day']}
               startAccessor="start"
               endAccessor="end"
               onSelectEvent={handleEventClick}
@@ -163,12 +176,12 @@ const App = () => {
         <Col md={3}>
           <Dropdown className="mt-2">
             <Dropdown.Toggle variant="secondary" id="dropdown-basic">
-              Setting
+              Settings
             </Dropdown.Toggle>
 
             <Dropdown.Menu>
               <Form className="px-3">
-                <Form.Label>Select to display in event details</Form.Label>
+                <Form.Label>Select columns to display in event details</Form.Label>
                 <div style={{ maxHeight: '150px', overflowY: 'scroll' }}>
                   {columns
                     .filter(col => col.title !== 'Name')
@@ -184,7 +197,7 @@ const App = () => {
                     ))}
                 </div>
                 <hr />
-                <Form.Label>Choose the date to base the event timing on</Form.Label>
+                <Form.Label>Choose the date field for event timing</Form.Label>
                 <div style={{ maxHeight: '150px', overflowY: 'scroll' }}>
                   {columns
                     .filter(col => col.title.includes('Date'))
