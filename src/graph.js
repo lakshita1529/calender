@@ -6,7 +6,7 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Dropdown, Modal, Form, Container, Row, Col } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import TaskDetails from './Taskdetails';
-import './App.css';
+import './App.css'
 
 const monday = mondaySdk();
 const localizer = momentLocalizer(moment);
@@ -17,10 +17,8 @@ const App = () => {
   const [events, setEvents] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
   const [columns, setColumns] = useState([]);
-  const [selectedColumns, setSelectedColumns] = useState(
-    JSON.parse(localStorage.getItem('selectedColumns')) || []
-  );
-  const [dateField, setDateField] = useState(localStorage.getItem('dateField') || 'start');
+  const [selectedColumns, setSelectedColumns] = useState([]); 
+  const [dateField, setDateField] = useState('start'); 
   const [highlightedEventId, setHighlightedEventId] = useState(null); // For color change on click
 
   useEffect(() => {
@@ -33,9 +31,9 @@ const App = () => {
     });
   }, [selectedColumns, dateField]);
 
-  // Fetching board data
   const fetchBoardData = async (boardId) => {
     setLoading(true);
+
     const query = `query {
       boards(ids: ${boardId}) {
         id
@@ -66,26 +64,27 @@ const App = () => {
         const eventDate = dateColumn && dateColumn.text ? new Date(dateColumn.text).toISOString() : null;
 
         let eventTitle = item.name;
+
         if (selectedColumns.length > 0) {
           const selectedDetails = selectedColumns.map(colId => {
             const columnValue = item.column_values.find(col => col.id === colId)?.text;
-            return columnValue || '';
+            return columnValue || ''; 
           }).filter(Boolean).join(', ');
 
           if (selectedDetails) {
-            eventTitle = `${item.name} - ${selectedDetails}`;
+            eventTitle = `${item.name} - ${selectedDetails}`; 
           }
         }
 
         if (eventDate) {
           return {
             id: item.id,
-            title: eventTitle,
-            originalTitle: item.name,
+            title: eventTitle, 
+            originalTitle: item.name, 
             start: eventDate,
             end: eventDate,
             allDay: false,
-            column_values: item.column_values,
+            column_values: item.column_values, 
           };
         }
         return null;
@@ -99,7 +98,6 @@ const App = () => {
     }
   };
 
-  // Fetch board columns
   const fetchBoardColumns = async (boardId) => {
     const query = `query {
       boards(ids: ${boardId}) {
@@ -119,35 +117,26 @@ const App = () => {
     }
   };
 
-  // Event click handler
   const handleEventClick = (event) => {
     setSelectedTask({ ...event, title: event.originalTitle });
     setHighlightedEventId(event.id); // Highlight event on click
   };
 
-  // Close modal and reset color
   const handleModalClose = () => {
     setSelectedTask(null);
     setHighlightedEventId(null); // Remove event highlight
   };
 
-  // Handle column selection for event display
   const handleColumnSelect = (column) => {
     if (selectedColumns.includes(column)) {
-      const updatedColumns = selectedColumns.filter(col => col !== column);
-      setSelectedColumns(updatedColumns);
-      localStorage.setItem('selectedColumns', JSON.stringify(updatedColumns)); // Persist settings
+      setSelectedColumns(selectedColumns.filter(col => col !== column));
     } else if (selectedColumns.length < 2) {
-      const updatedColumns = [...selectedColumns, column];
-      setSelectedColumns(updatedColumns);
-      localStorage.setItem('selectedColumns', JSON.stringify(updatedColumns)); // Persist settings
+      setSelectedColumns([...selectedColumns, column]);
     }
   };
 
-  // Handle date field selection
   const handleDateFieldChange = (e) => {
     setDateField(e.target.value);
-    localStorage.setItem('dateField', e.target.value); // Persist settings
   };
 
   return (
@@ -168,6 +157,20 @@ const App = () => {
               views={['month', 'week', 'day']}
               startAccessor="start"
               endAccessor="end"
+              eventPropGetter={(event) => {
+                return {
+                  style: {
+                    // Override style to not show the time, only the title
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }
+                };
+              }}
+              formats={{
+                eventTimeRangeFormat: () => '', // Remove time in the event label
+                timeGutterFormat: 'h:mm A', // Show time slot in the gutter (left side)
+              }}
               onSelectEvent={handleEventClick}
               style={{ height: '100%' }}
             />
