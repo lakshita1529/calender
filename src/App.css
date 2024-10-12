@@ -202,3 +202,47 @@ a {
     margin-bottom: 10px;
   }
 }
+.calendar-settings-wrapper {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.calendar-component-container {
+  flex-grow: 1;
+  margin-right: 20px;
+}
+
+.settings-panel-container {
+  width: 300px; /* Adjust the width as needed */
+  position: sticky;
+  top: 20px;
+  right: 0;
+}
+
+.settings-panel {
+  border: 1px solid #ddd;
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-radius: 5px;
+}
+
+.dropdown-toggle {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .calendar-settings-wrapper {
+    flex-direction: column;
+  }
+
+  .settings-panel-container {
+    width: 100%;
+    position: relative;
+  }
+
+  .calendar-component-container {
+    margin-right: 0;
+  }
+}
