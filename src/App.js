@@ -118,11 +118,13 @@ const App = () => {
     }
   };
 
-  // Transform board items to calendar events
+  // Transform board items to calendar events without time zone conversion
   const transformItemsToEvents = (items) => {
     return items.map(item => {
       const dateColumn = item.column_values.find(col => col.column.title === dateField);
-      const eventDate = dateColumn?.text ? new Date(dateColumn.text).toISOString() : null;
+      
+      // Use the date as it is, parsing it as static local time
+      const eventDate = dateColumn?.text ? moment(dateColumn.text, "YYYY-MM-DDTHH:mm:ss").toDate() : null;
 
       if (!eventDate) {
         console.warn(`Event skipped due to missing date field:`, item);
@@ -146,8 +148,8 @@ const App = () => {
         title: eventTitle,
         originalTitle: item.name,
         start: eventDate,
-        end: eventDate,
-        allDay: false,
+        end: eventDate,  // Use the same date as end to make it a single-day event
+        allDay: false,   // Set to false to respect time
         column_values: item.column_values,
       };
     }).filter(event => event !== null);
@@ -167,8 +169,10 @@ const App = () => {
     setSelectedColumns((prevColumns) => {
       let updatedColumns;
       if (prevColumns.includes(column)) {
+        // If the column is already selected, remove it (deselect)
         updatedColumns = prevColumns.filter(col => col !== column);
       } else if (prevColumns.length < 2) {
+        // If the column is not selected, and the limit is not exceeded, add it
         updatedColumns = [...prevColumns, column];
       } else {
         return prevColumns;
@@ -183,11 +187,21 @@ const App = () => {
 
   const handleDateFieldChange = (e) => {
     const newDateField = e.target.value;
-    setDateField(newDateField);
     
-    // Save selected date field to local storage for the specific board
-    const boardId = context.boardIds[0];
-    localStorage.setItem(`dateField_${boardId}`, newDateField);
+    // Deselect if the same radio button is clicked
+    if (dateField === newDateField) {
+      setDateField(null); // Set it to null to "deselect"
+      
+      // Save deselection to local storage for the specific board
+      const boardId = context.boardIds[0];
+      localStorage.setItem(`dateField_${boardId}`, null);
+    } else {
+      setDateField(newDateField);
+      
+      // Save the selected date field to local storage for the specific board
+      const boardId = context.boardIds[0];
+      localStorage.setItem(`dateField_${boardId}`, newDateField);
+    }
   };
 
   const handleViewChange = (newView) => {
@@ -202,13 +216,20 @@ const App = () => {
       <Row>
         <Col md={9}>
           <h1>Calendar</h1>
-          <div style={{ height: '600px', marginTop: '20px' }}>
+          {/* Loading indicator inside the calendar area */}
+          <div style={{ position: 'relative', height: '600px', marginTop: '20px' }}>
+            {loading && (
+              <div className="calendar-loading">
+                <p>Loading board data...</p>
+              </div>
+            )}
             <Calendar
               localizer={localizer}
               events={events.map(event => ({
                 ...event,
-                start: moment.utc(event.start).local().toDate(),
-                end: moment.utc(event.end).local().toDate(),
+                // Do not convert times to local or UTC, use them as-is
+                start: event.start,
+                end: event.end,
                 style: event.id === highlightedEventId ? { backgroundColor: 'blue' } : {},
               }))}
               views={['month', 'week', 'day']}
@@ -224,8 +245,8 @@ const App = () => {
                 }
               })}
               formats={{
-                eventTimeRangeFormat: () => '',
-                timeGutterFormat: 'h:mm A',
+                eventTimeRangeFormat: () => '',  // Custom format to control time rendering
+                timeGutterFormat: 'h:mm A',      // Adjust time format as needed
               }}
               onSelectEvent={handleEventClick}
               style={{ height: '100%' }}
@@ -234,7 +255,7 @@ const App = () => {
         </Col>
 
         <Col md={3}>
-          <Dropdown className="mt-2">
+        <Dropdown className="mt-2">
             <Dropdown.Toggle variant="secondary" id="dropdown-basic">
               Settings
             </Dropdown.Toggle>
@@ -273,8 +294,6 @@ const App = () => {
           </Dropdown>
         </Col>
       </Row>
-
-      {loading && <p>Loading board data...</p>}
 
       {selectedTask && (
         <Modal show={true} onHide={handleModalClose}>
