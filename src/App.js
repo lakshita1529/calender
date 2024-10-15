@@ -18,7 +18,7 @@ const App = () => {
   const [selectedTask, setSelectedTask] = useState(null);
   const [columns, setColumns] = useState([]);
   const [selectedColumns, setSelectedColumns] = useState([]);
-  const [dateField, setDateField] = useState('start');
+  const [dateFields, setDateFields] = useState([]); // Now an array to allow selecting up to two dates
   const [highlightedEventId, setHighlightedEventId] = useState(null);
   const [calendarView, setCalendarView] = useState('month'); // Default view to 'month'
 
@@ -39,12 +39,12 @@ const App = () => {
   // Fetch settings for the specific board
   const loadBoardSettings = (boardId) => {
     const savedColumns = JSON.parse(localStorage.getItem(`selectedColumns_${boardId}`)) || [];
-    const savedDateField = localStorage.getItem(`dateField_${boardId}`) || 'start';
+    const savedDateFields = JSON.parse(localStorage.getItem(`dateFields_${boardId}`)) || [];
     const savedCalendarView = localStorage.getItem(`calendarView_${boardId}`) || 'month';
     const savedEvents = JSON.parse(localStorage.getItem(`events_${boardId}`)) || []; // Load events for the specific board
 
     setSelectedColumns(savedColumns);
-    setDateField(savedDateField);
+    setDateFields(savedDateFields);
     setCalendarView(savedCalendarView);
     setEvents(savedEvents);
   };
@@ -53,7 +53,7 @@ const App = () => {
     if (context?.boardIds) {
       fetchBoardData(context.boardIds[0]);
     }
-  }, [selectedColumns, dateField]);
+  }, [selectedColumns, dateFields]);
 
   // Fetch board data and transform it into events
   const fetchBoardData = async (boardId) => {
@@ -118,41 +118,45 @@ const App = () => {
     }
   };
 
-  // Transform board items to calendar events without time zone conversion
+  // Transform board items to calendar events
   const transformItemsToEvents = (items) => {
-    return items.map(item => {
-      const dateColumn = item.column_values.find(col => col.column.title === dateField);
-      
-      // Use the date as it is, parsing it as static local time
-      const eventDate = dateColumn?.text ? moment(dateColumn.text, "YYYY-MM-DDTHH:mm:ss").toDate() : null;
+    const events = [];
+    
+    items.forEach(item => {
+      // Find the selected date columns
+      dateFields.forEach(dateField => {
+        const dateColumn = item.column_values.find(col => col.column.title === dateField);
+        if (!dateColumn || !dateColumn.text) return;
 
-      if (!eventDate) {
-        console.warn(`Event skipped due to missing date field:`, item);
-        return null;
-      }
+        const eventDate = moment(dateColumn.text, "YYYY-MM-DDTHH:mm:ss").toDate();
+        let eventTitle = item.name;
 
-      let eventTitle = item.name;
-      if (selectedColumns.length > 0) {
-        const selectedDetails = selectedColumns.map(colId => {
-          const columnValue = item.column_values.find(col => col.id === colId)?.text;
-          return columnValue || '';
-        }).filter(Boolean).join(', ');
+        // If additional columns are selected, append their values to the event title
+        if (selectedColumns.length > 0) {
+          const selectedDetails = selectedColumns.map(colId => {
+            const columnValue = item.column_values.find(col => col.id === colId)?.text;
+            return columnValue || '';
+          }).filter(Boolean).join(', ');
 
-        if (selectedDetails) {
-          eventTitle = `${item.name} - ${selectedDetails}`;
+          if (selectedDetails) {
+            eventTitle = `${item.name} - ${selectedDetails}`;
+          }
         }
-      }
 
-      return {
-        id: item.id,
-        title: eventTitle,
-        originalTitle: item.name,
-        start: eventDate,
-        end: eventDate,  // Use the same date as end to make it a single-day event
-        allDay: false,   // Set to false to respect time
-        column_values: item.column_values,
-      };
-    }).filter(event => event !== null);
+        // Push an event for each valid date
+        events.push({
+          id: `${item.id}-${dateField}`,  // Unique ID for each date field
+          title: eventTitle || "No Title",
+          originalTitle: item.name,
+          start: eventDate,
+          end: eventDate,  // Single day event
+          allDay: false,   // Respect time
+          column_values: item.column_values,
+        });
+      });
+    });
+
+    return events;
   };
 
   const handleEventClick = (event) => {
@@ -185,23 +189,24 @@ const App = () => {
     });
   };
 
-  const handleDateFieldChange = (e) => {
-    const newDateField = e.target.value;
-    
-    // Deselect if the same radio button is clicked
-    if (dateField === newDateField) {
-      setDateField(null); // Set it to null to "deselect"
-      
-      // Save deselection to local storage for the specific board
+  // Handle selecting up to 2 date fields
+  const handleDateFieldChange = (field) => {
+    setDateFields(prevFields => {
+      let updatedFields;
+      if (prevFields.includes(field)) {
+        // If already selected, deselect it
+        updatedFields = prevFields.filter(f => f !== field);
+      } else if (prevFields.length < 2) {
+        // If less than 2 are selected, add it
+        updatedFields = [...prevFields, field];
+      } else {
+        return prevFields; // Do not allow more than 2 selections
+      }
+
       const boardId = context.boardIds[0];
-      localStorage.setItem(`dateField_${boardId}`, null);
-    } else {
-      setDateField(newDateField);
-      
-      // Save the selected date field to local storage for the specific board
-      const boardId = context.boardIds[0];
-      localStorage.setItem(`dateField_${boardId}`, newDateField);
-    }
+      localStorage.setItem(`dateFields_${boardId}`, JSON.stringify(updatedFields));
+      return updatedFields;
+    });
   };
 
   const handleViewChange = (newView) => {
@@ -250,64 +255,64 @@ const App = () => {
               }}
               onSelectEvent={handleEventClick}
               style={{ height: '100%' }}
-            />
-          </div>
-        </Col>
-
-        <Col md={3}>
-        <Dropdown className="mt-2">
-            <Dropdown.Toggle variant="secondary" id="dropdown-basic">
-              Settings
-            </Dropdown.Toggle>
-
-            <Dropdown.Menu>
-              <Form className="px-3">
-                <Form.Label>Select columns to display in event details</Form.Label>
-                <div style={{ maxHeight: '150px', overflowY: 'scroll' }}>
-                  {columns.filter(col => col.title !== 'Name').map(col => (
-                    <Form.Check
-                      key={col.id}
-                      type="checkbox"
-                      label={col.title}
-                      checked={selectedColumns.includes(col.id)}
-                      onChange={() => handleColumnSelect(col.id)}
-                      disabled={selectedColumns.length >= 2 && !selectedColumns.includes(col.id)}
-                    />
-                  ))}
-                </div>
-                <hr />
-                <Form.Label>Choose the date field for event timing</Form.Label>
-                <div style={{ maxHeight: '150px', overflowY: 'scroll' }}>
-                  {columns.filter(col => col.title.includes('Date')).map(col => (
-                    <Form.Check
-                      key={col.id}
-                      type="radio"
-                      label={col.title}
-                      value={col.title}
-                      checked={dateField === col.title}
-                      onChange={handleDateFieldChange}
-                    />
-                  ))}
-                </div>
-              </Form>
-            </Dropdown.Menu>
-          </Dropdown>
-        </Col>
-      </Row>
-
-      {selectedTask && (
-        <Modal show={true} onHide={handleModalClose}>
-          <Modal.Header closeButton>
-            <Modal.Title>Task Details</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            <TaskDetails selectedTask={selectedTask} />
-          </Modal.Body>
-        </Modal>
-      )}
-    </Container>
-  );
-};
-
-export default App;
-
+              />
+            </div>
+          </Col>
+  
+          <Col md={3}>
+            <Dropdown className="mt-2">
+              <Dropdown.Toggle variant="secondary" id="dropdown-basic">
+                Settings
+              </Dropdown.Toggle>
+  
+              <Dropdown.Menu>
+                <Form className="px-3">
+                  <Form.Label>Select columns to display in event details</Form.Label>
+                  <div style={{ maxHeight: '150px', overflowY: 'scroll' }}>
+                    {columns.filter(col => col.title !== 'Name').map(col => (
+                      <Form.Check
+                        key={col.id}
+                        type="checkbox"
+                        label={col.title}
+                        checked={selectedColumns.includes(col.id)}
+                        onChange={() => handleColumnSelect(col.id)}
+                        disabled={selectedColumns.length >= 2 && !selectedColumns.includes(col.id)}
+                      />
+                    ))}
+                  </div>
+                  <hr />
+                  <Form.Label>Select up to 2 date fields for event timing</Form.Label>
+                  <div style={{ maxHeight: '150px', overflowY: 'scroll' }}>
+                    {columns.filter(col => col.title.includes('Date')).map(col => (
+                      <Form.Check
+                        key={col.id}
+                        type="checkbox"
+                        label={col.title}
+                        checked={dateFields.includes(col.title)}
+                        onChange={() => handleDateFieldChange(col.title)}
+                        disabled={dateFields.length >= 2 && !dateFields.includes(col.title)}
+                      />
+                    ))}
+                  </div>
+                </Form>
+              </Dropdown.Menu>
+            </Dropdown>
+          </Col>
+        </Row>
+  
+        {selectedTask && (
+          <Modal show={true} onHide={handleModalClose}>
+            <Modal.Header closeButton>
+              <Modal.Title>Task Details</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <TaskDetails selectedTask={selectedTask} />
+            </Modal.Body>
+          </Modal>
+        )}
+      </Container>
+    );
+  };
+  
+  export default App;
+  
