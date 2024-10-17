@@ -1,15 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import mondaySdk from 'monday-sdk-js';
 import moment from 'moment';
+import 'moment-timezone'; // Import moment-timezone for timezone control
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Dropdown, Modal, Form, Container, Row, Col } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import { FaCog } from 'react-icons/fa'; // Import the settings icon
 import TaskDetails from './Taskdetails';
 import './App.css';
 
 const monday = mondaySdk();
+moment.tz.setDefault('UTC'); // Set default timezone to UTC globally
 const localizer = momentLocalizer(moment);
+
+const CustomEvent = ({ event }) => {
+  return (
+    <div style={{ whiteSpace: 'pre-wrap' }}> {/* Ensure newlines are respected */}
+      {event.title}
+    </div>
+  );
+};
 
 const App = () => {
   const [context, setContext] = useState(null);
@@ -22,26 +33,24 @@ const App = () => {
   const [highlightedEventId, setHighlightedEventId] = useState(null);
   const [calendarView, setCalendarView] = useState('month'); // Default view to 'month'
 
-  // Load settings and events from local storage on component mount
   useEffect(() => {
     monday.listen("context", (res) => {
       const { boardIds } = res.data;
       setContext(res.data);
       if (boardIds && boardIds.length > 0) {
         const boardId = boardIds[0];
-        loadBoardSettings(boardId); // Load settings for the specific board
+        loadBoardSettings(boardId);
         fetchBoardData(boardId);
         fetchBoardColumns(boardId);
       }
     });
   }, []);
 
-  // Fetch settings for the specific board
   const loadBoardSettings = (boardId) => {
     const savedColumns = JSON.parse(localStorage.getItem(`selectedColumns_${boardId}`)) || [];
     const savedDateFields = JSON.parse(localStorage.getItem(`dateFields_${boardId}`)) || [];
     const savedCalendarView = localStorage.getItem(`calendarView_${boardId}`) || 'month';
-    const savedEvents = JSON.parse(localStorage.getItem(`events_${boardId}`)) || []; // Load events for the specific board
+    const savedEvents = JSON.parse(localStorage.getItem(`events_${boardId}`)) || [];
 
     setSelectedColumns(savedColumns);
     setDateFields(savedDateFields);
@@ -55,36 +64,36 @@ const App = () => {
     }
   }, [selectedColumns, dateFields]);
 
-  // Fetch board data and transform it into events
   const fetchBoardData = async (boardId) => {
     setLoading(true);
     const query = `query {
-      boards(ids: ${boardId}) {
-        id
-        name
-        items_page(limit: 500) {
-          items {
-            id
-            name
-            column_values {
-              id
-              text
-              column {
-                title
+           boards(ids: ${boardId}) {
+         id
+              name
+              items_page(limit: 500) {
+                cursor
+                items {
+                  id
+                  name
+                  column_values {
+                    id
+                    text
+                    value
+                    column {
+                      title
+                      type
+                    }
+                  }
+               }
               }
             }
-          }
-        }
-      }
-    }`;
+          }`;
 
     try {
       const response = await monday.api(query);
       const items = response.data.boards[0].items_page.items;
       const transformedEvents = transformItemsToEvents(items);
       setEvents(transformedEvents);
-
-      // Save events to local storage for the specific board
       localStorage.setItem(`events_${boardId}`, JSON.stringify(transformedEvents));
     } catch (error) {
       console.error("Error fetching board data:", error);
@@ -93,23 +102,20 @@ const App = () => {
     }
   };
 
-  // Fetch available columns for the board
   const fetchBoardColumns = async (boardId) => {
     const query = `query {
       boards(ids: ${boardId}) {
         columns {
           id
           title
+          type
         }
       }
     }`;
 
     try {
       const response = await monday.api(query);
-      console.log("Fetched columns for board:", boardId, response.data.boards[0].columns);
       setColumns(response.data.boards[0].columns);
-
-      // Check if previously selected columns are valid for the current board
       const savedColumns = JSON.parse(localStorage.getItem(`selectedColumns_${boardId}`)) || [];
       const validColumns = savedColumns.filter(colId => response.data.boards[0].columns.some(col => col.id === colId));
       setSelectedColumns(validColumns);
@@ -118,44 +124,38 @@ const App = () => {
     }
   };
 
-  // Transform board items to calendar events
   const transformItemsToEvents = (items) => {
     const events = [];
-    
     items.forEach(item => {
-      // Find the selected date columns
-      dateFields.forEach(dateField => {
-        const dateColumn = item.column_values.find(col => col.column.title === dateField);
+      dateFields.forEach(dateFieldId => {
+        const dateColumn = item.column_values.find(col => col.id === dateFieldId);
         if (!dateColumn || !dateColumn.text) return;
 
-        const eventDate = moment(dateColumn.text, "YYYY-MM-DDTHH:mm:ss").toDate();
-        let eventTitle = item.name;
+        // Ensure the event date is in UTC and static
+        const eventDate = moment.utc(dateColumn.text, "YYYY-MM-DDTHH:mm:ss").toDate();
 
-        // If additional columns are selected, append their values to the event title
+        let eventTitle = item.name;
         if (selectedColumns.length > 0) {
           const selectedDetails = selectedColumns.map(colId => {
             const columnValue = item.column_values.find(col => col.id === colId)?.text;
             return columnValue || '';
-          }).filter(Boolean).join(', ');
-
+          }).filter(Boolean).join('\n'); // Join details with a new line
           if (selectedDetails) {
-            eventTitle = `${item.name} - ${selectedDetails}`;
+            eventTitle = `${item.name}\n${selectedDetails}`; // Append selected details in a new line
           }
         }
 
-        // Push an event for each valid date
         events.push({
-          id: `${item.id}-${dateField}`,  // Unique ID for each date field
+          id: `${item.id}-${dateFieldId}`,
           title: eventTitle || "No Title",
           originalTitle: item.name,
           start: eventDate,
-          end: eventDate,  // Single day event
-          allDay: false,   // Respect time
+          end: eventDate,
+          allDay: false,
           column_values: item.column_values,
         });
       });
     });
-
     return events;
   };
 
@@ -170,39 +170,31 @@ const App = () => {
   };
 
   const handleColumnSelect = (column) => {
-    setSelectedColumns((prevColumns) => {
+    setSelectedColumns(prevColumns => {
       let updatedColumns;
       if (prevColumns.includes(column)) {
-        // If the column is already selected, remove it (deselect)
         updatedColumns = prevColumns.filter(col => col !== column);
       } else if (prevColumns.length < 2) {
-        // If the column is not selected, and the limit is not exceeded, add it
         updatedColumns = [...prevColumns, column];
       } else {
         return prevColumns;
       }
-
-      // Save selected columns to local storage for the specific board
       const boardId = context.boardIds[0];
       localStorage.setItem(`selectedColumns_${boardId}`, JSON.stringify(updatedColumns));
       return updatedColumns;
     });
   };
 
-  // Handle selecting up to 2 date fields
   const handleDateFieldChange = (field) => {
     setDateFields(prevFields => {
       let updatedFields;
       if (prevFields.includes(field)) {
-        // If already selected, deselect it
         updatedFields = prevFields.filter(f => f !== field);
       } else if (prevFields.length < 2) {
-        // If less than 2 are selected, add it
         updatedFields = [...prevFields, field];
       } else {
-        return prevFields; // Do not allow more than 2 selections
+        return prevFields;
       }
-
       const boardId = context.boardIds[0];
       localStorage.setItem(`dateFields_${boardId}`, JSON.stringify(updatedFields));
       return updatedFields;
@@ -211,7 +203,6 @@ const App = () => {
 
   const handleViewChange = (newView) => {
     setCalendarView(newView);
-    // Save the selected calendar view to local storage for the specific board
     const boardId = context.boardIds[0];
     localStorage.setItem(`calendarView_${boardId}`, newView);
   };
@@ -219,57 +210,19 @@ const App = () => {
   return (
     <Container fluid>
       <Row>
-        <Col md={9}>
-          <h1>Calendar</h1>
-          {/* Loading indicator inside the calendar area */}
-          <div style={{ position: 'relative', height: '600px', marginTop: '20px' }}>
-            {loading && (
-              <div className="calendar-loading">
-                <p>Loading board data...</p>
-              </div>
-            )}
-            <Calendar
-              localizer={localizer}
-              events={events.map(event => ({
-                ...event,
-                // Do not convert times to local or UTC, use them as-is
-                start: event.start,
-                end: event.end,
-                style: event.id === highlightedEventId ? { backgroundColor: 'blue' } : {},
-              }))}
-              views={['month', 'week', 'day']}
-              view={calendarView} // Controlled view from state
-              onView={handleViewChange} // Handle view change
-              startAccessor="start"
-              endAccessor="end"
-              eventPropGetter={() => ({
-                style: {
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }
-              })}
-              formats={{
-                eventTimeRangeFormat: () => '',  // Custom format to control time rendering
-                timeGutterFormat: 'h:mm A',      // Adjust time format as needed
-              }}
-              onSelectEvent={handleEventClick}
-              style={{ height: '100%' }}
-              />
-            </div>
-          </Col>
-  
-          <Col md={3}>
-            <Dropdown className="mt-2">
-              <Dropdown.Toggle variant="secondary" id="dropdown-basic">
-                Settings
+        <Col md={12}>
+          <div className="calendar-header">
+            <h1 className="calendar-heading">Calendar</h1>
+            <Dropdown className="settings-icon">
+              <Dropdown.Toggle variant="link" className="settings-icon">
+                <FaCog /> {/* Settings icon without dropdown arrow */}
               </Dropdown.Toggle>
-  
+
               <Dropdown.Menu>
                 <Form className="px-3">
                   <Form.Label>Select columns to display in event details</Form.Label>
                   <div style={{ maxHeight: '150px', overflowY: 'scroll' }}>
-                    {columns.filter(col => col.title !== 'Name').map(col => (
+                    {columns.filter(col => col.type !== 'name').map(col => (
                       <Form.Check
                         key={col.id}
                         type="checkbox"
@@ -283,36 +236,87 @@ const App = () => {
                   <hr />
                   <Form.Label>Select up to 2 date fields for event timing</Form.Label>
                   <div style={{ maxHeight: '150px', overflowY: 'scroll' }}>
-                    {columns.filter(col => col.title.includes('Date')).map(col => (
+                    {columns.filter(col => col.type === 'date').map(col => (
                       <Form.Check
                         key={col.id}
                         type="checkbox"
                         label={col.title}
-                        checked={dateFields.includes(col.title)}
-                        onChange={() => handleDateFieldChange(col.title)}
-                        disabled={dateFields.length >= 2 && !dateFields.includes(col.title)}
+                        checked={dateFields.includes(col.id)}
+                        onChange={() => handleDateFieldChange(col.id)}
+                        disabled={dateFields.length >= 2 && !dateFields.includes(col.id)}
                       />
                     ))}
                   </div>
                 </Form>
               </Dropdown.Menu>
             </Dropdown>
-          </Col>
-        </Row>
-  
-        {selectedTask && (
-          <Modal show={true} onHide={handleModalClose}>
-            <Modal.Header closeButton>
-              <Modal.Title>Task Details</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-              <TaskDetails selectedTask={selectedTask} />
-            </Modal.Body>
-          </Modal>
-        )}
-      </Container>
-    );
-  };
-  
-  export default App;
-  
+          </div>
+        </Col>
+
+        <Col md={12}>
+          <div style={{ position: 'relative', height: '600px', marginTop: '20px' }}>
+            {loading && (
+              <div className="calendar-loading">
+                                <p>Loading board data...</p>
+              </div>
+            )}
+            <Calendar
+              localizer={localizer}
+              events={events.map(event => ({
+                ...event,
+                start: moment.utc(event.start).toDate(),  // Ensure the start time is treated as UTC
+                end: moment.utc(event.end).toDate(),      // Ensure the end time is treated as UTC
+                style: event.id === highlightedEventId ? { backgroundColor: 'blue' } : {},
+              }))}
+              views={['month', 'week', 'day']}
+              view={calendarView} // Controlled view from state
+              onView={handleViewChange} // Handle view change
+              startAccessor="start"
+              endAccessor="end"
+              eventPropGetter={() => ({
+                style: {
+                  whiteSpace: 'pre-wrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }
+              })}
+              formats={{
+                eventTimeRangeFormat: () => '',  // Custom format to hide time range in events
+                timeGutterFormat: 'h:mm A',      // Time gutter format to show time in 12-hour format with AM/PM
+                dayFormat: (date, culture, localizer) => localizer.format(moment.utc(date).toDate(), 'ddd DD/MM', culture), // Format day cells in UTC
+                monthHeaderFormat: (date, culture, localizer) => localizer.format(moment.utc(date).toDate(), 'MMMM YYYY', culture), // Format month header in UTC
+                agendaHeaderFormat: (range, culture, localizer) =>
+                  localizer.format(moment.utc(range.start).toDate(), 'MMM DD', culture) +
+                  ' - ' +
+                  localizer.format(moment.utc(range.end).toDate(), 'MMM DD', culture), // Format agenda header in UTC
+                agendaDateFormat: (date, culture, localizer) => localizer.format(moment.utc(date).toDate(), 'DD/MM', culture), // Format for dates in agenda view in UTC
+                agendaTimeFormat: (date, culture, localizer) => localizer.format(moment.utc(date).toDate(), 'h:mm A', culture), // Time format in agenda view in UTC
+                agendaTimeRangeFormat: ({ start, end }, culture, localizer) =>
+                  localizer.format(moment.utc(start).toDate(), 'h:mm A', culture) + ' - ' + localizer.format(moment.utc(end).toDate(), 'h:mm A', culture), // Time range format in agenda in UTC
+              }}
+              components={{
+                event: CustomEvent,  // Use the custom event component here
+              }}
+              onSelectEvent={handleEventClick}
+              style={{ height: '100%' }}
+            />
+          </div>
+        </Col>
+      </Row>
+
+      {selectedTask && (
+        <Modal show={true} onHide={handleModalClose}>
+          <Modal.Header closeButton>
+            <Modal.Title>Task Details</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <TaskDetails selectedTask={selectedTask} />
+          </Modal.Body>
+        </Modal>
+      )}
+    </Container>
+  );
+};
+
+export default App;
+
