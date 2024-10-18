@@ -4,7 +4,11 @@ import moment from 'moment';
 import 'moment-timezone'; 
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+<<<<<<< HEAD
 import { Modal, Form, Container, Row, Col } from 'react-bootstrap'; 
+=======
+import { Modal, Form, Container, Row, Col } from 'react-bootstrap'; // Ensure Modal is imported here
+>>>>>>> ce6cd5244b2b423a914f902f83a5878d163107fd
 import 'bootstrap/dist/css/bootstrap.min.css';
 import TaskDetails from './Taskdetails';
 import './App.css';
@@ -19,13 +23,50 @@ const CustomEvent = ({ event }) => (
   </div>
 );
 
+// Component to handle multiple events on the same day (expand in place on "+ more" click)
+const CustomDayComponent = ({ events = [], onSelectEvent }) => {
+  const [isExpanded, setIsExpanded] = useState(false); // To control the expanded state
+  const maxVisibleEvents = 2; // Show up to 2 events initially
+  const visibleEvents = isExpanded ? events : events.slice(0, maxVisibleEvents);
+  const extraEvents = events.length - maxVisibleEvents;
+
+  return (
+    <div>
+      {visibleEvents.map(event => (
+        <div
+          key={event.id}
+          onClick={() => onSelectEvent(event)} // Handle event click
+          style={{ cursor: 'pointer', backgroundColor: '#133d2d', color: 'white', padding: '3px', marginBottom: '2px' }}
+        >
+          {event.title}
+        </div>
+      ))}
+      {extraEvents > 0 && !isExpanded && (
+        <div 
+          onClick={() => setIsExpanded(true)} // Expand to show more events on click
+          style={{ cursor: 'pointer', color: 'blue', marginTop: '2px' }}>
+          + {extraEvents} more
+        </div>
+      )}
+      {isExpanded && (
+        <div onClick={() => setIsExpanded(false)} style={{ cursor: 'pointer', color: 'blue', marginTop: '2px' }}>
+          Show less
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+
 const App = () => {
   const [context, setContext] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [events, setEvents] = useState([]);
+  const [events, setEvents] = useState([]); // Event data
   const [selectedTask, setSelectedTask] = useState(null);
   const [columns, setColumns] = useState([]);
   const [selectedColumns, setSelectedColumns] = useState([]);
+<<<<<<< HEAD
   const [dateFields, setDateFields] = useState([]);
   const [highlightedEventId, setHighlightedEventId] = useState(null);
   const [calendarView, setCalendarView] = useState('month');
@@ -43,6 +84,14 @@ const App = () => {
     `;
     document.head.appendChild(style);
   }, []);
+=======
+  const [dateFields, setDateFields] = useState([]); // Now an array to allow selecting up to two dates
+  const [calendarView, setCalendarView] = useState('month'); // Default view to 'month'
+  const [dayEvents, setDayEvents] = useState([]); // Store events for a day
+  const [showDayModal, setShowDayModal] = useState(false); // To control the modal
+  const [highlightedEventId, setHighlightedEventId] = useState(null);
+
+>>>>>>> ce6cd5244b2b423a914f902f83a5878d163107fd
 
   useEffect(() => {
     monday.listen('context', (res) => {
@@ -133,12 +182,59 @@ const App = () => {
     }
   };
 
+  // Handle selecting/deselecting columns for event details display
+const handleColumnSelect = (columnId) => {
+  setSelectedColumns(prevColumns => {
+    let updatedColumns;
+    if (prevColumns.includes(columnId)) {
+      // If the column is already selected, deselect it
+      updatedColumns = prevColumns.filter(col => col !== columnId);
+    } else if (prevColumns.length < 2) {
+      // If less than 2 columns are selected, add the new column
+      updatedColumns = [...prevColumns, columnId];
+    } else {
+      // Don't allow selecting more than 2 columns
+      return prevColumns;
+    }
+    const boardId = context.boardIds[0];
+    localStorage.setItem(`selectedColumns_${boardId}`, JSON.stringify(updatedColumns));
+    return updatedColumns;
+  });
+};
+
+
+const handleDateFieldChange = (fieldTitle) => {
+  setDateFields(prevFields => {
+    let updatedFields;
+    if (prevFields.includes(fieldTitle)) {
+      // If the date field is already selected, deselect it
+      updatedFields = prevFields.filter(f => f !== fieldTitle);
+    } else if (prevFields.length < 2) {
+      // If less than 2 date fields are selected, add the new date field
+      updatedFields = [...prevFields, fieldTitle];
+    } else {
+      // Don't allow selecting more than 2 date fields
+      return prevFields;
+    }
+    const boardId = context.boardIds[0];
+    localStorage.setItem(`dateFields_${boardId}`, JSON.stringify(updatedFields));
+    return updatedFields;
+  });
+};
+
+
   const transformItemsToEvents = (items) => {
     const events = [];
+<<<<<<< HEAD
 
     items.forEach((item) => {
       dateFields.forEach((dateFieldId) => {
         const dateColumn = item.column_values.find((col) => col.id === dateFieldId); // Match by ID
+=======
+    items.forEach(item => {
+      dateFields.forEach(dateField => {
+        const dateColumn = item.column_values.find(col => col.column.title === dateField);
+>>>>>>> ce6cd5244b2b423a914f902f83a5878d163107fd
         if (!dateColumn || !dateColumn.text) return;
 
         const eventDate = moment.utc(dateColumn.text, 'YYYY-MM-DDTHH:mm:ss').toDate();
@@ -160,8 +256,13 @@ const App = () => {
 
         // Push an event for each valid date
         events.push({
+<<<<<<< HEAD
           id: `${item.id}-${dateFieldId}`, // Unique ID for each date field
           title: eventTitle || 'No Title',
+=======
+          id: `${item.id}-${dateField}`,
+          title: eventTitle || "No Title",
+>>>>>>> ce6cd5244b2b423a914f902f83a5878d163107fd
           originalTitle: item.name,
           start: eventDate,
           end: eventDate,
@@ -174,12 +275,20 @@ const App = () => {
     return events;
   };
 
-  const handleEventClick = (event) => {
-    setSelectedTask({ ...event, title: event.originalTitle });
-    setHighlightedEventId(event.id);
+  const handleShowMoreEvents = (dayEvents) => {
+    setDayEvents(dayEvents);
+    setShowDayModal(true); // Display modal for all day events
   };
+  
+  const handleSelectEvent = (event) => {
+    // Expand and display task details within the same calendar day section
+    setHighlightedEventId(event.id); // Set the event ID to highlight/display its details inline
+  };
+  
+  
 
   const handleModalClose = () => {
+<<<<<<< HEAD
     setSelectedTask(null);
     setHighlightedEventId(null);
   };
@@ -216,6 +325,10 @@ const App = () => {
       localStorage.setItem(`dateFields_${boardId}`, JSON.stringify(updatedFields));
       return updatedFields;
     });
+=======
+    setDayEvents([]);
+    setShowDayModal(false);
+>>>>>>> ce6cd5244b2b423a914f902f83a5878d163107fd
   };
 
   const handleViewChange = (newView) => {
@@ -236,6 +349,7 @@ const App = () => {
                 <p>Loading board data...</p>
               </div>
             )}
+<<<<<<< HEAD
             <Calendar
               localizer={localizer}
               events={events.map((event) => ({
@@ -278,6 +392,38 @@ const App = () => {
               onSelectEvent={handleEventClick}
               style={{ height: '100%' }}
             />
+=======
+<Calendar
+  localizer={localizer}
+  events={events.map(event => ({
+    ...event,
+    start: moment.utc(event.start).toDate(),  // Ensure the start time is treated as UTC
+    end: moment.utc(event.end).toDate(),      // Ensure the end time is treated as UTC
+  }))}
+  views={['month', 'week', 'day']}
+  view={calendarView} // Controlled view from state
+  onView={handleViewChange} // Handle view change
+  startAccessor="start"
+  endAccessor="end"
+  eventPropGetter={() => ({
+    style: {
+      backgroundColor: '#133d2d', // Set consistent color for all events
+      color: 'white', // Ensure text is readable
+    }
+  })} // Keep the event color as dark green for all events
+  components={{
+    month: {
+      dateCellWrapper: CustomDayComponent, // Use the custom day component to handle "+ more"
+    },
+    event: CustomEvent,  // Use the custom event component
+  }}
+  onSelectEvent={(event) => handleSelectEvent(event)} // Handle event click
+  style={{ height: '100%' }}
+/>
+
+
+
+>>>>>>> ce6cd5244b2b423a914f902f83a5878d163107fd
           </div>
         </Col>
 
@@ -312,9 +458,15 @@ const App = () => {
                   key={col.id}
                   type="checkbox"
                   label={col.title}
+<<<<<<< HEAD
                   checked={dateFields.includes(col.id)}
                   onChange={() => handleDateFieldChange(col.id)}
                   disabled={dateFields.length >= 2 && !dateFields.includes(col.id)}
+=======
+                  checked={dateFields.includes(col.title)}
+                  onChange={() => handleDateFieldChange(col.title)}
+                  disabled={dateFields.length >= 2 && !dateFields.includes(col.title)}
+>>>>>>> ce6cd5244b2b423a914f902f83a5878d163107fd
                 />
               ))}
             </div>
@@ -336,8 +488,32 @@ const App = () => {
         </Col>
       </Row>
 
+      {/* Modal to Show Events on a Selected Day */}
+      <Modal show={showDayModal} onHide={handleModalClose}>
+        <Modal.Header closeButton>
+          <Modal.Title>Events for the Day</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {dayEvents.length === 0 ? (
+            <p>No events scheduled for this day.</p>
+          ) : (
+            <ul>
+              {dayEvents.map(event => (
+                <li key={event.id}>
+                  <strong>{event.title}</strong>
+                  <br />
+                  Start: {moment(event.start).format('MMMM Do YYYY, h:mm:ss a')}
+                  <br />
+                  End: {moment(event.end).format('MMMM Do YYYY, h:mm:ss a')}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Modal.Body>
+      </Modal>
+
       {selectedTask && (
-        <Modal show={true} onHide={handleModalClose}>
+        <Modal show={true} onHide={() => setSelectedTask(null)}>
           <Modal.Header closeButton>
             <Modal.Title>Task Details</Modal.Title>
           </Modal.Header>
