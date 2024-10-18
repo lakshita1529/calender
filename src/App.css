@@ -1,31 +1,162 @@
+/* Sidebar Styles */
+
+.settings-sidebar {
+  background-color: #133d2d;
+  color: #fff;
+  padding: 20px;
+  /* border-radius: 8px; */
+  height: 100vh;
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: 280px;
+  z-index: 1000;
+  overflow-y: auto;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  max-height: 90vh; /* 90% of the viewport height */
+}
+
+.sidebar-header {
+  font-size: 1.5em;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+.settings-form label {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #e5e5e5;
+}
+
+.settings-form .form-check {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.settings-form .form-check-label {
+  font-size: 0.95rem;
+  margin-left: 8px;
+  color: #fff;
+}
+
+.settings-form .form-check-input {
+  width: 18px;
+  height: 18px;
+  background-color: #fff;
+  border: 2px solid #333;
+  border-radius: 4px;
+  cursor: pointer;
+  appearance: none;
+  position: relative;
+}
+
+.settings-form .form-check-input:checked {
+  background-color: #28a745;
+  border-color: #28a745;
+}
+
+/* Scrollable Area */
+.settings-form .scrollable-checkboxes {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Custom Scrollbar */
+.settings-form .scrollable-checkboxes::-webkit-scrollbar {
+  width: 8px;
+}
+
+.settings-form .scrollable-checkboxes::-webkit-scrollbar-thumb {
+  background-color: #333;
+  border-radius: 4px;
+}
+
+/* Button Styles */
+.settings-button {
+  background-color: #28a745;
+  color: #fff;
+  padding: 10px;
+  font-size: 1rem;
+  font-weight: bold;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.settings-button:hover {
+  background-color: #218838;
+}
+
+/* Responsive Sidebar */
+@media (max-width: 1024px) {
+  .settings-sidebar {
+    width: 80vw; /* 80% of the viewport width */
+    height: auto;
+    top: 0;
+    right: 0;
+    bottom: 0;
+  }
+}
+
+/* Further adjustments for mobile and smaller screens */
+@media (max-width: 768px) {
+  .settings-sidebar {
+    width: 100%;
+    height: auto;
+    top: 0;
+    right: 0;
+    bottom: 0;
+  }
+
+  .sidebar-header h3 {
+    font-size: 1.4em;
+  }
+
+  .settings-form label {
+    font-size: 1rem;
+  }
+}
+
+/* For larger screens (PC) */
+@media (min-width: 1200px) {
+  .settings-sidebar {
+    width: 350px; /* Wider sidebar for large screens */
+  }
+}
+
+/* Calendar Styles */
 .calendar-header {
-  background-color: #133d2d; /* Green background */
+  background-color: #133d2d; /* Dark green background */
   color: #fff; /* White text for contrast */
   padding: 10px 20px; /* Padding around the header */
   border-radius: 8px; /* Rounded corners */
   display: flex; /* Flex to align items horizontally */
   align-items: center; /* Vertically center the items */
-  justify-content: space-between; /* Space between the heading and settings icon */
-  margin: 30px 0 20px 0; /* Margin with space above to prevent touching the top */
+  justify-content: center; /* Center-align the heading */
+  margin: 30px 0 20px 0; /* Margin with space above */
 }
 
 .calendar-heading {
   font-size: 2.5em; /* Adjust the size of the Calendar text */
   font-weight: bold; /* Make the text bold */
-  width: fit-content; /* Make the padding narrower to fit the text */
-  padding-right: 20px; /* Adjust padding to make the width smaller */
+  text-align: center; /* Center-align the text */
 }
 
+
 .settings-icon {
-  color: #fff; /* Make the icon white to match the text */
-  font-size: 1.3em; /* Adjust the size of the icon */
-  cursor: pointer; /* Add pointer cursor on hover */
-  background: none; /* Remove background */
-  border: none; /* Remove any border */
-  padding: 0; /* Remove padding */
-  margin-left: 20px; /* Optional: add some space between the text and icon */
-  display: flex; /* Flexbox to handle icon alignment */
-  align-items: center; /* Vertically center the icon */
+  color: #fff;
+  font-size: 1.3em;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 20px;
+  display: flex;
+  align-items: center;
 }
 
 /* No color change on hover */
@@ -33,11 +164,6 @@
   color: #fff;
 }
 
-.settings-icon .dropdown-toggle::after {
-  display: none; /* Remove the dropdown arrow */
-}
-
-/* Calendar Styling */
 .rbc-calendar {
   background-color: #fff;
   border: 4px solid #ddd;
@@ -73,18 +199,17 @@
 /* Calendar Event Styling */
 .rbc-event {
   background-color: #0f2e24; /* Dark green for events */
-  color: #fff; /* White text for better contrast */
+  color: #fff; /* White text */
   border-radius: 8px; /* Rounded corners */
-  padding: 6px 10px; /* Adjusted padding for better text fit */
- 
-  font-size: 12px; /* Reduced font size for better visibility */
-  line-height: 1.2; /* Reduce line height to fit text within the event */
-  text-align: center; /* Center align text */
-  overflow: hidden; /* Prevent text overflow */
+  padding: 6px 10px; /* Padding for better text fit */
+  font-size: 12px; /* Adjusted font size */
+  line-height: 1.2; /* Line height to fit text */
+  text-align: center; /* Center text */
+  white-space: nowrap; /* Prevent text wrapping */
+  overflow: hidden; /* Hide any overflow */
   text-overflow: ellipsis; /* Add ellipsis to overflowing text */
-  white-space: nowrap; /* Prevent text from wrapping */
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); /* Add subtle shadow */
-  margin-bottom: 5px; /* Add margin between events */
+  max-width: 100%; /* Constrain the width to prevent shifting */
+  box-sizing: border-box; /* Ensure padding and border are included in width/height */
 }
 
 /* Ensure the color remains the same when the event is clicked or focused */
@@ -95,14 +220,6 @@
   outline: none; /* Remove any outline */
 }
 
-/* Ensure text doesn't get clipped */
-.rbc-day-slot .rbc-event,
-.rbc-time-slot .rbc-event {
-  height: auto; /* Auto height to fit content */
-  position: relative;
-}
-
-/* Event active state (When modal is opened or clicked) */
 .rbc-event:active {
   background-color: #0f2e24 !important; /* Retain green background */
   color: #fff !important; /* Retain white text */
@@ -118,21 +235,24 @@
 .rbc-header {
   background-color: #133d2d; /* Dark green background */
   color: white; /* White text for contrast */
-  padding: 15px 10px; /* Adjust padding to give more space vertically */
-  text-align: center; /* Center the text horizontally */
-  font-size: 16px; /* Reduce font size slightly for better fit */
-  font-weight: bold; /* Bold font for visibility */
-  line-height: 1.5; /* Increase line height to avoid text touching the bottom */
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Add subtle shadow for depth */
-  margin: 0 2px; /* Add small margins to prevent headers from touching */
-  display: flex; /* Use flexbox for vertical alignment */
-  align-items: center; /* Vertically center the text */
-  justify-content: center; /* Horizontally center the text */
+  padding: 15px 10px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1.5;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin: 0 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .rbc-header span {
   display: inline-block;
   vertical-align: middle;
+}
+.calendar {
+  height: 80vh; /* 80% of the viewport height */
 }
 
 /* Calendar date cell styling */
@@ -140,6 +260,25 @@
   color: #333;
   font-weight: bold;
 }
+
+.rbc-day-slot {
+  padding: 0;
+  margin: 0;
+  width: 100%; /* Ensure it uses the full width */
+  box-sizing: border-box;
+}
+
+.rbc-time-slot {
+  padding: 0;
+  margin: 0;
+}
+
+
+.container-fluid {
+  max-height: 90vh; /* 90% of the viewport height */
+  overflow-y: auto; /* Enable scrolling if content overflows */
+}
+
 
 /* Modal Styling */
 .modal-content {
@@ -213,7 +352,6 @@
   text-decoration: underline;
   font-weight: 600;
 }
-
 
 /* Responsive Design */
 
@@ -304,3 +442,4 @@
     padding: 4px 6px;
   }
 }
+
