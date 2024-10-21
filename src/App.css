@@ -443,3 +443,8 @@
   }
 }
 
+.rbc-month-row {
+  display: inline-table !important;
+  flex: 0 0 0 !important;
+  min-height: 60px !important;
+}

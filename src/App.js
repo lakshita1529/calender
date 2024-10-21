@@ -30,20 +30,6 @@ const App = () => {
   const [highlightedEventId, setHighlightedEventId] = useState(null);
   const [calendarView, setCalendarView] = useState('month');
 
-  // Set default width style for the calendar
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.innerHTML = `
-      .rbc-day-slot {
-        min-width: 120px !important;
-      }
-      .rbc-header {
-        min-width: 120px !important;
-      }
-    `;
-    document.head.appendChild(style);
-  }, []);
-
   useEffect(() => {
     monday.listen('context', (res) => {
       const { boardIds } = res.data;
@@ -236,7 +222,7 @@ const App = () => {
                 <p>Loading board data...</p>
               </div>
             )}
-            <Calendar
+           <Calendar
               localizer={localizer}
               events={events.map((event) => ({
                 ...event,
@@ -255,27 +241,36 @@ const App = () => {
                   whiteSpace: 'pre-wrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  background: '#133d2d',
+                  backgroundColor: '#133d2d',
+                  color: 'white',
+                  display: 'flex',
+                  justifyContent: 'center',  // Center horizontally
+                  alignItems: 'center',  // Center vertically
+                  textAlign: 'center',   // Ensure text is centered
                 },
               })}
               formats={{
                 eventTimeRangeFormat: () => '',  // Custom format to hide time range in events
-                timeGutterFormat: 'h:mm A',      // Time gutter format to show time in 12-hour format with AM/PM
-                dayFormat: (date, culture, localizer) => localizer.format(moment.utc(date).toDate(), 'ddd DD/MM', culture), // Format day cells in UTC
-                monthHeaderFormat: (date, culture, localizer) => localizer.format(moment.utc(date).toDate(), 'MMMM YYYY', culture), // Format month header in UTC
-                agendaHeaderFormat: (range, culture, localizer) =>
-                  localizer.format(moment.utc(range.start).toDate(), 'MMM DD', culture) +
-                  ' - ' +
-                  localizer.format(moment.utc(range.end).toDate(), 'MMM DD', culture), // Format agenda header in UTC
-                agendaDateFormat: (date, culture, localizer) => localizer.format(moment.utc(date).toDate(), 'DD/MM', culture), // Format for dates in agenda view in UTC
-                agendaTimeFormat: (date, culture, localizer) => localizer.format(moment.utc(date).toDate(), 'h:mm A', culture), // Time format in agenda view in UTC
-                agendaTimeRangeFormat: ({ start, end }, culture, localizer) =>
-                  localizer.format(moment.utc(start).toDate(), 'h:mm A', culture) + ' - ' + localizer.format(moment.utc(end).toDate(), 'h:mm A', culture), // Time range format in agenda in UTC
+                timeGutterFormat: 'h:mm A', // Time gutter format to show time in 12-hour format with AM/PM
+                dayFormat: (date, culture, localizer) =>
+                  localizer.format(moment.utc(date).toDate(), 'ddd DD/MM', culture), // Format day cells in UTC
+                monthHeaderFormat: (date, culture, localizer) =>
+                  localizer.format(moment.utc(date).toDate(), 'MMMM YYYY', culture), // Format month header in UTC
               }}
               components={{
-                event: CustomEvent,  // Use the custom event component here
+                event: CustomEvent, // Use the custom event component here
               }}
               onSelectEvent={handleEventClick}
+              // Set max events per day to 2 and customize "+ more" button
+              maxEvents={2}
+         
+              messages={{
+                showMore: (count) => (
+                  <span style={{ color: '#133d2d', fontWeight: 'bold' }}>
+                    + {count} more
+                  </span>
+                ), // Customizes the "+ more" button text and style
+              }}
               style={{ height: '100%' }}
             />
           </div>
@@ -290,7 +285,7 @@ const App = () => {
             {/* Column Selection */}
             <Form.Label>Select Columns to Display in Event Details</Form.Label>
             <div style={{ maxHeight: '150px', overflowY: 'scroll' }}>
-              {columns.filter(col => col.title !== 'Name').map(col => (
+              {columns.filter((col) => col.title !== 'Name').map((col) => (
                 <Form.Check
                   key={col.id}
                   type="checkbox"
@@ -307,7 +302,7 @@ const App = () => {
             {/* Date Fields Selection */}
             <Form.Label>Select Up to 2 Date Fields for Event Timing</Form.Label>
             <div style={{ maxHeight: '150px', overflowY: 'scroll' }}>
-              {columns.filter(col => col.title.includes('Date')).map(col => (
+              {columns.filter((col) => col.title.includes('Date')).map((col) => (
                 <Form.Check
                   key={col.id}
                   type="checkbox"
@@ -323,11 +318,7 @@ const App = () => {
 
             {/* View Selection */}
             <Form.Label>Select Calendar View</Form.Label>
-            <Form.Control
-              as="select"
-              value={calendarView}
-              onChange={(e) => handleViewChange(e.target.value)}
-            >
+            <Form.Control as="select" value={calendarView} onChange={(e) => handleViewChange(e.target.value)}>
               <option value="month">Month View</option>
               <option value="week">Week View</option>
               <option value="day">Day View</option>
