@@ -8,7 +8,8 @@ import { Modal, Form, Container, Row, Col } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import TaskDetails from './Taskdetails';
 import './App.css';
-import { FiSettings } from 'react-icons/fi'; // Import the settings icon
+// Import the settings icon from react-icons
+import { FiSettings } from 'react-icons/fi'; 
 
 const monday = mondaySdk();
 moment.tz.setDefault('UTC'); // Set default timezone to UTC
@@ -30,7 +31,7 @@ const App = () => {
   const [dateFields, setDateFields] = useState([]);
   const [highlightedEventId, setHighlightedEventId] = useState(null);
   const [calendarView, setCalendarView] = useState('month');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Sidebar visibility
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // State for sidebar visibility
 
   useEffect(() => {
     monday.listen('context', (res) => {
@@ -38,14 +39,13 @@ const App = () => {
       setContext(res.data);
       if (boardIds && boardIds.length > 0) {
         const boardId = boardIds[0];
-        loadBoardSettings(boardId); // Load stored settings for the board
-        fetchBoardData(boardId); // Fetch board data
-        fetchBoardColumns(boardId); // Fetch board columns
+        loadBoardSettings(boardId);
+        fetchBoardData(boardId);
+        fetchBoardColumns(boardId);
       }
     });
   }, []);
 
-  // Load the saved settings from localStorage
   const loadBoardSettings = (boardId) => {
     const savedColumns = JSON.parse(localStorage.getItem(`selectedColumns_${boardId}`)) || [];
     const savedDateFields = JSON.parse(localStorage.getItem(`dateFields_${boardId}`)) || [];
@@ -58,14 +58,12 @@ const App = () => {
     setEvents(savedEvents);
   };
 
-  // Refetch board data on column/date field change
   useEffect(() => {
     if (context?.boardIds) {
       fetchBoardData(context.boardIds[0]);
     }
   }, [selectedColumns, dateFields]);
 
-  // Fetch board items and transform them into calendar events
   const fetchBoardData = async (boardId) => {
     setLoading(true);
     const query = `query {
@@ -101,7 +99,6 @@ const App = () => {
     }
   };
 
-  // Fetch columns for the board
   const fetchBoardColumns = async (boardId) => {
     const query = `query {
       boards(ids: ${boardId}) {
@@ -125,7 +122,6 @@ const App = () => {
     }
   };
 
-  // Transform items to calendar events
   const transformItemsToEvents = (items) => {
     const events = [];
 
@@ -224,10 +220,11 @@ const App = () => {
   return (
     <Container fluid>
       <Row>
-        <Col md={12}>
+        <Col md={9}>
           {/* Add Calendar Heading */}
           <h2 className="calendar-heading">
             Calendar
+            {/* Add the settings icon and click event */}
             <FiSettings
               onClick={toggleSidebar} // Toggle the sidebar on click
               style={{ cursor: 'pointer', marginLeft: '15px' }}
@@ -235,13 +232,13 @@ const App = () => {
               title="Settings" // Tooltip on hover
             />
           </h2>
-          <div style={{ position: 'relative', height: 'calc(100vh - 60px)', marginTop: '20px' }}>
+          <div style={{ position: 'relative', height: '600px', marginTop: '20px' }}>
             {loading && (
               <div className="calendar-loading">
                 <p>Loading board data...</p>
               </div>
             )}
-  <Calendar
+            <Calendar
               localizer={localizer}
               events={events.map((event) => ({
                 ...event,
@@ -255,52 +252,18 @@ const App = () => {
               popup={true} // Enables popup for "+ more" events
               startAccessor="start"
               endAccessor="end"
-              eventPropGetter={() => ({
-                style: {
-                  whiteSpace: 'pre-wrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  backgroundColor: '#133d2d',
-                  color: 'white',
-                  display: 'flex',
-                  justifyContent: 'center',  // Center horizontally
-                  alignItems: 'center',  // Center vertically
-                  textAlign: 'center',   // Ensure text is centered
-                },
-              })}
-              formats={{
-                eventTimeRangeFormat: () => '',  // Custom format to hide time range in events
-                timeGutterFormat: 'h:mm A', // Time gutter format to show time in 12-hour format with AM/PM
-                dayFormat: (date, culture, localizer) =>
-                  localizer.format(moment.utc(date).toDate(), 'ddd DD/MM', culture), // Format day cells in UTC
-                monthHeaderFormat: (date, culture, localizer) =>
-                  localizer.format(moment.utc(date).toDate(), 'MMMM YYYY', culture), // Format month header in UTC
-              }}
               components={{
                 event: CustomEvent, // Use the custom event component here
               }}
               onSelectEvent={handleEventClick}
-              // Set max events per day to 2 and customize "+ more" button
-              maxEvents={2}
-         
-              messages={{
-                showMore: (count) => (
-                  <span style={{ color: '#133d2d', fontWeight: 'bold' }}>
-                    + {count} more
-                  </span>
-                ), // Customizes the "+ more" button text and style
-              }}
               style={{ height: '100%' }}
             />
-
-
-
           </div>
         </Col>
 
         {/* Sidebar: Conditional rendering based on `isSidebarOpen` */}
         {isSidebarOpen && (
-          <Col md={12} className="settings-sidebar">
+          <Col md={3} className="settings-sidebar">
             <div className="sidebar-header">
               <h3>Settings</h3>
             </div>
@@ -327,13 +290,14 @@ const App = () => {
               <div style={{ maxHeight: '150px', overflowY: 'scroll' }}>
                 {columns.filter((col) => col.title.includes('Date')).map((col) => (
                   <Form.Check
-                    key={col.id}
-                    type="checkbox"
-                    label={col.title}
-                    checked={dateFields.includes(col.id)}
-                    onChange={() => handleDateFieldChange(col.id)}
-                    disabled={dateFields.length >= 2 && !dateFields.includes(col.id)}
-                  />
+                  key={col.id}
+                  type="checkbox"
+                  label={col.title}
+                  checked={dateFields.includes(col.title)}
+                  onChange={() => handleDateFieldChange(col.title)}
+                  disabled={dateFields.length >= 2 && !dateFields.includes(col.title)}
+                />
+                
                 ))}
               </div>
 
